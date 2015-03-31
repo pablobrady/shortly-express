@@ -28,6 +28,21 @@ function(req, res) {
   res.render('index');
 });
 
+
+//Get login
+app.get('/login', 
+function(req, res) {
+  res.render('login');
+});
+
+
+//Sign up
+app.get('/signup', 
+function(req, res) {
+  res.render('signup');
+});
+
+
 app.get('/create', 
 function(req, res) {
   res.render('index');
@@ -78,6 +93,54 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.post('/login', function(req,res) {
+    
+  var username = req.body.username;
+  var password = req.body.password;
+  //get username 
+  new User({username: username}).fetch().then(function(user){
+    //if no user
+    if (!user) {
+      //redicrect to login page
+      res.redirect('/login');
+    } else {
+      //get user password
+      bcrypt.compare(password, user.get(password), function(){
+        //check user password
+        if (match) {
+          //if matched DO SOMETHING
+          util.createSession(req, res, user);
+        } else {
+          //if not send user to login page
+          res.redirect('/login');   
+        }
+      })
+    }
+  });
+});
+
+
+// signup
+app.post('/signup', function(req,res) {
+    
+  var username = req.body.username;
+  var password = req.body.password;
+  //get username and password
+  new User({username: username, password: password}).fetch().then(function(found){
+    //if user exist
+    if (found) {
+      // user can't create account because one already exists
+      res.send(402, found.attributes);
+      console.log('redirect user to sign up page');
+      //redirect them back to sign up
+      res.redirect('/signup');
+    } else {
+      Users.create().then(function(newUser) {
+        ///something goes here!!! yeah
+      });
+    }
+  });
+});
 
 
 /************************************************************/
