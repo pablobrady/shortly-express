@@ -21,9 +21,21 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+//define bcrypt
+var Bcrypt = require('bcrypt');
 
 
-app.get('/', 
+//enable sessions
+//$ npm install express-session
+var session = require('express-session');
+app.use(session({
+  secret: 'data',
+  resave: false,
+  saveUnitialized: true
+}));
+
+//protect by checking user
+app.get('/', util.checkUser,
 function(req, res) {
   res.render('index');
 });
@@ -42,23 +54,25 @@ function(req, res) {
   res.render('signup');
 });
 
-
-app.get('/create', 
+//protect by checking user
+app.get('/create', util.checkUser, 
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+//protect by checking user
+app.get('/links', util.checkUser,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
+
     res.send(200, links.models);
   });
 });
 
 app.post('/links', 
 function(req, res) {
-  var uri = req.body.url;
 
+  var uri = req.body.url;
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
     return res.send(404);
@@ -98,14 +112,14 @@ app.post('/login', function(req,res) {
   var username = req.body.username;
   var password = req.body.password;
   //get username 
-  new User({username: username}).fetch().then(function(user){
+  new User({'username': username}).fetch().then(function(user){
     //if no user
     if (!user) {
-      //redicrect to login page
+      //redicrect to sign up page
       res.redirect('/login');
     } else {
-      //get user password
-      bcrypt.compare(password, user.get(password), function(){
+      //get user password and compare
+      Bcrypt.compare(password, user.get('password'), function(err, match){
         //check user password
         if (match) {
           //if matched DO SOMETHING
@@ -120,24 +134,30 @@ app.post('/login', function(req,res) {
 });
 
 
-// signup
+// sign up
 app.post('/signup', function(req,res) {
     
   var username = req.body.username;
   var password = req.body.password;
+console.log(username, " ", password);
   //get username and password
-  new User({username: username, password: password}).fetch().then(function(found){
+  new User({username: username}).fetch().then(function(found){
+    console.log("found:", found);
     //if user exist
-    if (found) {
-      // user can't create account because one already exists
-      res.send(402, found.attributes);
-      console.log('redirect user to sign up page');
-      //redirect them back to sign up
-      res.redirect('/signup');
-    } else {
-      Users.create().then(function(newUser) {
-        ///something goes here!!! yeah
+    if (!found) {
+      Bcrypt.hash(password, null, null, function(err, hash){
+        //create user,\
+        Users.create({
+          username: username,
+          password: password
+        }).then(function(user) {
+          //create session for new user
+          util.createSession(req, res, user);
+        })
       });
+    } else {
+      //redirect to singup page
+      res.redirect('/signup');
     }
   });
 });
@@ -150,7 +170,9 @@ app.post('/signup', function(req,res) {
 /************************************************************/
 
 app.get('/*', function(req, res) {
+
   new Link({ code: req.params[0] }).fetch().then(function(link) {
+    console.log("here **********", link);
     if (!link) {
       res.redirect('/');
     } else {
