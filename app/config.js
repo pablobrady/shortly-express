@@ -52,9 +52,9 @@ db.knex.schema.hasTable('users').then(function(exists) {
     db.knex.schema.createTable('users', function (user) {
       user.increments('id').primary();
       //create username column
-      user.string('username', 31).unique();
+      user.string('username', 100).unique();
       //create password column
-      user.string('password', 39);
+      user.string('password', 100);
       //have timestamp
       user.timestamps();
     }).then(function (table) {
