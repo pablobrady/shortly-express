@@ -21,18 +21,22 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
-//define bcrypt
-var Bcrypt = require('bcrypt');
 
+//define bcrypt
+var bcrypt = require('bcrypt-nodejs');
+
+// To logout the user (must install express-password-logout)
+var logout = require('express-passport-logout');
 
 //enable sessions
 //$ npm install express-session
 var session = require('express-session');
 app.use(session({
-  secret: 'data',
+  secret: 'keyboard cat',
   resave: false,
-  saveUnitialized: true
-}));
+  saveUninitialized: true,
+  cookie: { secure: true }
+}))
 
 //protect by checking user
 app.get('/', util.checkUser,
@@ -47,6 +51,11 @@ function(req, res) {
   res.render('login');
 });
 
+// Logout the user 
+app.get('/logout', function(req, res) {
+  logout();
+  res.render('login');
+});
 
 //Sign up
 app.get('/signup', 
@@ -115,13 +124,13 @@ app.post('/login', function(req,res) {
   new User({'username': username}).fetch().then(function(user){
     //if no user
     if (!user) {
-      //redicrect to sign up page
+      //redicrect to sign up page - user doesn't exist
       res.redirect('/login');
     } else {
       //get user password and compare
-      Bcrypt.compare(password, user.get('password'), function(err, match){
+      bcrypt.compare(password, user.get('password'), function(err, valid){
         //check user password
-        if (match) {
+        if (valid) {
           //if matched DO SOMETHING
           util.createSession(req, res, user);
         } else {
@@ -139,28 +148,34 @@ app.post('/signup', function(req,res) {
     
   var username = req.body.username;
   var password = req.body.password;
-console.log(username, " ", password);
+
   //get username and password
   new User({username: username}).fetch().then(function(found){
-    console.log("found:", found);
     //if user exist
     if (!found) {
-      Bcrypt.hash(password, null, null, function(err, hash){
-        //create user,\
-        Users.create({
+      bcrypt.hash(password, null, null, function(err, hash){
+
+        var newUser = new User({
           username: username,
-          password: password
-        }).then(function(user) {
+          password: hash
+        });
+
+        newUser.save().then(function(newUser) {
           //create session for new user
-          util.createSession(req, res, user);
-        })
+          util.createSession(req, res, newUser);
+          Users.add(newUser);
+        })     
       });
+
     } else {
       //redirect to singup page
+      console.log("The following username already exists!!!");
       res.redirect('/signup');
+
     }
   });
 });
+
 
 
 /************************************************************/
@@ -172,7 +187,6 @@ console.log(username, " ", password);
 app.get('/*', function(req, res) {
 
   new Link({ code: req.params[0] }).fetch().then(function(link) {
-    console.log("here **********", link);
     if (!link) {
       res.redirect('/');
     } else {
